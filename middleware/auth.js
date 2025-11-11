@@ -1,28 +1,20 @@
-/**
- * middleware/auth.js
- * JWT auth middleware that works for both API and admin routes.
- * Attaches req.user (Sequelize User instance).
- */
 const jwt = require('jsonwebtoken');
-const { User, Role } = require('../models');
-const JWT_SECRET = process.env.JWT_SECRET || 'change_me';
+const { User } = require('../models');
 
-async function authMiddleware(req, res, next) {
+module.exports = async (req, res, next) => {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ message: 'Unauthenticated. Please provide a valid token.' });
+  const parts = header.split(' ');
+  if (parts.length !== 2) return res.status(401).json({ message: 'Invalid token format' });
+  const token = parts[1];
+
   try {
-    const authHeader = req.headers.authorization || req.cookies?.auth_token;
-    if (!authHeader) return res.status(401).json({ success: false, message: 'Unauthorized: No token provided' });
-
-    const token = authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : authHeader;
-    const payload = jwt.verify(token, JWT_SECRET);
-    const user = await User.findByPk(payload.sub, {
-      include: [{ model: Role, as: 'Roles' }]
-    });
-    if (!user) return res.status(401).json({ success: false, message: 'Unauthorized: User not found' });
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+    const user = await User.findByPk(payload.id);
+    if (!user) return res.status(401).json({ message: 'Unauthenticated. Please provide a valid token.' });
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ success: false, message: 'Unauthorized: ' + (err.message || 'Invalid token') });
+    return res.status(401).json({ message: 'Unauthenticated. Please provide a valid token.' });
   }
-}
-
-module.exports = { authMiddleware };
+};

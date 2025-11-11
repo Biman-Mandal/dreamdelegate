@@ -1,46 +1,115 @@
-'use strict';
-const bcrypt = require('bcrypt');
+const { DataTypes } = require('sequelize');
+const bcrypt = require('bcryptjs');
+const cuid = require('cuid');
 
-module.exports = (sequelize, DataTypes) => {
+module.exports = (sequelize) => {
   const User = sequelize.define('User', {
-    id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-    name: { type: DataTypes.STRING, allowNull: false },
-    email: { type: DataTypes.STRING, allowNull: false, unique: true },
+    id: { type: DataTypes.STRING, primaryKey: true },
+    name: { type: DataTypes.STRING },
+    email: { type: DataTypes.STRING, unique: true, allowNull: false },
     phone: { type: DataTypes.STRING, allowNull: true },
-    password: { type: DataTypes.STRING, allowNull: false },
-    roleName: { type: DataTypes.STRING, allowNull: false },
-    emailVerifiedAt: { type: DataTypes.DATE, field: 'email_verified_at' }
+    avatarUrl: { type: DataTypes.STRING, allowNull: true },
+    // quick role enum column in user, in addition to the roles pivot table if used.
+    role: { type: DataTypes.ENUM('owner', 'staff', 'client'), allowNull: false, defaultValue: 'client' },
+    status: { type: DataTypes.ENUM('active', 'invited', 'disabled'), allowNull: false, defaultValue: 'active' },
+    password: { type: DataTypes.STRING },
+    email_verified_at: { type: DataTypes.DATE, allowNull: true },
+    lastLoginAt: { type: DataTypes.DATE, allowNull: true },
+    mfa_enabled: { type: DataTypes.BOOLEAN, defaultValue: false }
   }, {
     tableName: 'users',
-    underscored: true,
     timestamps: true,
-    hooks: {
-      beforeCreate: async (user) => {
-        if (user.password) {
-          const salt = await bcrypt.genSalt(10);
-          user.password = await bcrypt.hash(user.password, salt);
-        }
-      },
-      beforeUpdate: async (user) => {
-        if (user.changed('password')) {
-          const salt = await bcrypt.genSalt(10);
-          user.password = await bcrypt.hash(user.password, salt);
-        }
-      }
+    underscored: false
+  });
+
+  // Generate CUID for primary key if not provided
+  User.beforeCreate(async (user, options) => {
+    if (!user.id) user.id = cuid();
+    if (user.password) {
+      user.password = await bcrypt.hash(user.password, 10);
     }
   });
 
-  User.associate = function(models) {
-    User.belongsToMany(models.Role, {
-      through: models.UserRole,
-      foreignKey: 'user_id',
-      otherKey: 'role_id',
-      as: 'Roles'
-    });
+  User.beforeUpdate(async (user, options) => {
+    if (user.changed('password')) {
+      user.password = await bcrypt.hash(user.password, 10);
+    }
+  });
+
+  // Relationship helpers will be attached in models/index.js
+
+  // Role/permission helper methods (useful wrappers)
+  User.prototype.hasRole = async function (roles) {
+    if (!roles) return false;
+    const { Role } = sequelize.models;
+    if (typeof roles === 'string') roles = [roles];
+    const r = await this.getRoles({ where: { name: roles } });
+    return r && r.length > 0;
   };
 
-  User.prototype.verifyPassword = function(plain) {
-    return bcrypt.compare(plain, this.password);
+  User.prototype.hasPermission = async function (permissionName) {
+    const perms = await this.getPermissions({ where: { name: permissionName } });
+    if (perms && perms.length > 0) return true;
+    const roles = await this.getRoles({ include: [{ model: sequelize.models.Permission, where: { name: permissionName }, required: false }] });
+    for (const r of roles) {
+      const p = await r.getPermissions({ where: { name: permissionName } });
+      if (p && p.length > 0) return true;
+    }
+    return false;
+  };
+
+  User.prototype.hasAnyPermission = async function (permissions) {
+    for (const p of permissions) {
+      if (await this.hasPermission(p)) return true;
+    }
+    return false;
+  };
+
+  User.prototype.hasAllPermissions = async function (permissions) {
+    for (const p of permissions) {
+      if (!(await this.hasPermission(p))) return false;
+    }
+    return true;
+  };
+
+  User.prototype.assignRole = async function (roleOrName) {
+    const { Role } = sequelize.models;
+    let role = roleOrName;
+    if (typeof roleOrName === 'string') {
+      role = await Role.findOne({ where: { name: roleOrName } });
+      if (!role) throw new Error('Role not found: ' + roleOrName);
+    }
+    await this.addRole(role);
+  };
+
+  User.prototype.removeRole = async function (roleOrName) {
+    const { Role } = sequelize.models;
+    let role = roleOrName;
+    if (typeof roleOrName === 'string') {
+      role = await Role.findOne({ where: { name: roleOrName } });
+      if (!role) return;
+    }
+    await this.removeRole(role);
+  };
+
+  User.prototype.grantPermission = async function (permissionOrName) {
+    const { Permission } = sequelize.models;
+    let permission = permissionOrName;
+    if (typeof permissionOrName === 'string') {
+      permission = await Permission.findOne({ where: { name: permissionOrName } });
+      if (!permission) throw new Error('Permission not found: ' + permissionOrName);
+    }
+    await this.addPermission(permission);
+  };
+
+  User.prototype.revokePermission = async function (permissionOrName) {
+    const { Permission } = sequelize.models;
+    let permission = permissionOrName;
+    if (typeof permissionOrName === 'string') {
+      permission = await Permission.findOne({ where: { name: permissionOrName } });
+      if (!permission) return;
+    }
+    await this.removePermission(permission);
   };
 
   return User;

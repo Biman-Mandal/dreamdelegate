@@ -1,12 +1,12 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  return sequelize.define('UserRole', {
+  return sequelize.define('UserPermission', {
     id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
     user_id: { type: DataTypes.STRING },
-    role_id: { type: DataTypes.BIGINT }
+    permission_id: { type: DataTypes.BIGINT }
   }, {
-    tableName: 'user_roles',
+    tableName: 'user_permissions',
     timestamps: true
   });
 };

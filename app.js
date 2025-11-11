@@ -1,15 +1,15 @@
+require('dotenv').config();
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
-require('dotenv').config();
 
 // initialize DB (Sequelize) before routes that use models
 const { sequelize } = require('./models');
 
-var apiRouter = require('./routes/api');
-var adminRouter = require('./routes/admin');
+const apiRoutes = require('./routes/api');
+const adminRoutes = require('./routes/admin');
 
 var app = express();
 
@@ -23,12 +23,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Mount separate route groups
-// API routes (mobile/web frontend APIs) namespace: /api/**
-app.use('/api', apiRouter);
-
-// Admin app routes (server-rendered admin UI or admin API) namespace: /admin/**
-app.use('/admin', adminRouter);
+app.use('/api', apiRoutes);
+app.use('/api', adminRoutes);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
