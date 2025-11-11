@@ -1,4 +1,5 @@
 require('dotenv').config();
+const cors = require('cors');
 var createError = require('http-errors');
 var express = require('express');
 var path = require('path');
@@ -12,6 +13,7 @@ const apiRoutes = require('./routes/api');
 const adminRoutes = require('./routes/admin');
 
 var app = express();
+app.use(cors());
 
 // view engine setup (keep if you use admin views)
 app.set('views', path.join(__dirname, 'views'));
