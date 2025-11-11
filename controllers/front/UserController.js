@@ -36,12 +36,12 @@ exports.store = async (req, res) => {
 };
 
 exports.show = async (req, res) => {
-  return res.json({ success: true, data: await req.userRecord.reload({ include: ['Roles', 'Permissions'] }) });
+  return res.json({ success: true, data: await req.user.reload({ include: ['Roles', 'Permissions'] }) });
 };
 
 exports.update = async (req, res) => {
   try {
-    const user = req.userRecord;
+    const user = req.user;
     const { name, email, phone } = req.body;
     if (!name || !email) return res.status(400).json({ success: false, message: 'name and email required' });
 
@@ -57,9 +57,29 @@ exports.update = async (req, res) => {
   }
 };
 
+exports.updatePassword = async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.id);
+    const { current_password, password, password_confirmation } = req.body;
+    if (!current_password || !password || password !== password_confirmation) {
+      return res.status(400).json({ success: false, message: 'Invalid password payload' });
+    }
+
+    const match = await bcrypt.compare(current_password, user.password);
+    if (!match) return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    await user.update({ password: hashed });
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (e) {
+    console.error('ProfileController.updatePassword', e);
+    return res.status(500).json({ success: false, message: 'Failed to update password', error: e.message });
+  }
+};
 exports.destroy = async (req, res) => {
   try {
-    await req.userRecord.destroy();
+    await req.user.destroy();
     return res.json({ success: true, message: 'User deleted successfully' });
   } catch (err) {
     console.error('UserController.destroy', err);
@@ -71,8 +91,8 @@ exports.assignRole = async (req, res) => {
   try {
     const role = await Role.findByPk(req.body.role_id);
     if (!role) return res.status(404).json({ success: false, message: 'Role not found' });
-    await req.userRecord.addRole(role);
-    return res.json({ success: true, message: 'Role assigned to user successfully', data: await req.userRecord.reload({ include: ['Roles','Permissions'] }) });
+    await req.user.addRole(role);
+    return res.json({ success: true, message: 'Role assigned to user successfully', data: await req.user.reload({ include: ['Roles','Permissions'] }) });
   } catch (err) {
     console.error('UserController.assignRole', err);
     return res.status(500).json({ success: false, message: 'Failed to assign role', error: err.message });
@@ -83,8 +103,8 @@ exports.removeRole = async (req, res) => {
   try {
     const role = await Role.findByPk(req.body.role_id);
     if (!role) return res.status(404).json({ success: false, message: 'Role not found' });
-    await req.userRecord.removeRole(role);
-    return res.json({ success: true, message: 'Role removed from user successfully', data: await req.userRecord.reload({ include: ['Roles','Permissions'] }) });
+    await req.user.removeRole(role);
+    return res.json({ success: true, message: 'Role removed from user successfully', data: await req.user.reload({ include: ['Roles','Permissions'] }) });
   } catch (err) {
     console.error('UserController.removeRole', err);
     return res.status(500).json({ success: false, message: 'Failed to remove role', error: err.message });
@@ -95,8 +115,8 @@ exports.grantPermission = async (req, res) => {
   try {
     const permission = await Permission.findByPk(req.body.permission_id);
     if (!permission) return res.status(404).json({ success: false, message: 'Permission not found' });
-    await req.userRecord.addPermission(permission);
-    return res.json({ success: true, message: 'Permission granted to user successfully', data: await req.userRecord.reload({ include: ['Roles','Permissions'] }) });
+    await req.user.addPermission(permission);
+    return res.json({ success: true, message: 'Permission granted to user successfully', data: await req.user.reload({ include: ['Roles','Permissions'] }) });
   } catch (err) {
     console.error('UserController.grantPermission', err);
     return res.status(500).json({ success: false, message: 'Failed to grant permission', error: err.message });
@@ -107,8 +127,8 @@ exports.revokePermission = async (req, res) => {
   try {
     const permission = await Permission.findByPk(req.body.permission_id);
     if (!permission) return res.status(404).json({ success: false, message: 'Permission not found' });
-    await req.userRecord.removePermission(permission);
-    return res.json({ success: true, message: 'Permission revoked from user successfully', data: await req.userRecord.reload({ include: ['Roles','Permissions'] }) });
+    await req.user.removePermission(permission);
+    return res.json({ success: true, message: 'Permission revoked from user successfully', data: await req.user.reload({ include: ['Roles','Permissions'] }) });
   } catch (err) {
     console.error('UserController.revokePermission', err);
     return res.status(500).json({ success: false, message: 'Failed to revoke permission', error: err.message });

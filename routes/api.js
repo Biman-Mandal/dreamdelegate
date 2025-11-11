@@ -15,9 +15,8 @@ const SlotController = require('../controllers/front/SlotController');
 const SupportTicketController = require('../controllers/front/SupportTicketController');
 const StripePaymentController = require('../controllers/front/StripePaymentController');
 
+
 // Mount admin routes (admin APIs live in src/routes/admin.js)
-const adminRoutes = require('./admin');
-router.use('/admin', adminRoutes);
 
 // Public routes
 router.post('/stripe', (req, res) => res.sendStatus(200)); // webhook - mounted separately if implemented
@@ -34,6 +33,9 @@ router.post('/stripe/verify-payment', optionalAuth, StripePaymentController.veri
 // Protected routes
 router.use(auth);
 
+router.get('/profile', UserController.show);
+router.put('/profile', UserController.update);
+router.put('/profile/password', UserController.updatePassword);
 // Auth
 router.post('/auth/logout', AuthController.logout);
 router.get('/auth/user', AuthController.user);

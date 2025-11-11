@@ -1,4 +1,4 @@
-const { User, StripeTransaction, PlanSubscription } = require('../../models');
+const { User, StripeTransaction, PlanSubscription, Role } = require('../../models');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 
